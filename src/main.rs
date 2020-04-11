@@ -1,3 +1,4 @@
+use anyhow::Result;
 use git2::{BlameHunk, BlameOptions, Oid, Repository, Signature};
 use std::collections::HashMap;
 use std::fmt;
@@ -83,7 +84,9 @@ impl fmt::Display for Owner {
     }
 }
 
-fn run(args: &Args) -> Result<(), git2::Error> {
+fn main() -> Result<()> {
+    let args = Args::from_args();
+
     //let path = Path::new(&args.arg_path[..]);
     let repo = Repository::discover(&args.arg_path)?;
 
@@ -115,12 +118,4 @@ fn run(args: &Args) -> Result<(), git2::Error> {
     }
 
     Ok(())
-}
-
-fn main() {
-    let args = Args::from_args();
-    match run(&args) {
-        Ok(()) => {}
-        Err(e) => println!("error: {}", e),
-    }
 }

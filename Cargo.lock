@@ -10,6 +10,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9a60d744a80c30fcb657dfe2c1b22bcb3e814c1a1e3674f32bf5820b570fbff"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -37,15 +43,6 @@ name = "autocfg"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
-
-[[package]]
-name = "autoowner"
-version = "0.1.0"
-dependencies = [
- "git2",
- "shellexpand",
- "structopt",
-]
 
 [[package]]
 name = "base64"
@@ -148,6 +145,16 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "git-whoknows"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "git2",
+ "shellexpand",
+ "structopt",
 ]
 
 [[package]]
