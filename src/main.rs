@@ -1,12 +1,14 @@
-
-use std::fmt;
-use git2::{BlameOptions, Repository, Signature, BlameHunk, Oid};
-use std::path::{PathBuf};
-use structopt::StructOpt;
+use anyhow::Result;
+use git2::{BlameHunk, BlameOptions, Oid, Repository, Signature};
 use std::collections::HashMap;
+use std::fmt;
+use std::path::PathBuf;
+use structopt::clap::AppSettings;
+use structopt::StructOpt;
 
 #[derive(StructOpt)]
 #[allow(non_snake_case)]
+#[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
     #[structopt(name = "path", parse(from_os_str))]
     arg_path: PathBuf,
@@ -24,25 +26,23 @@ struct Args {
 struct TrackedFile {
     #[allow(dead_code)]
     path: String,
-    owners: HashMap<String, Owner>
+    owners: HashMap<String, Owner>,
 }
 
 impl TrackedFile {
-    fn new (path: &String) -> TrackedFile
-    {
+    fn new(path: &String) -> TrackedFile {
         TrackedFile {
             path: path.clone(),
             owners: HashMap::new(),
         }
     }
 
-    fn add_hunk (
-        &mut self,
-        commit: &BlameHunk
-    )
-    {
+    fn add_hunk(&mut self, commit: &BlameHunk) {
         let owner = Owner::new(&commit.final_signature());
-        self.owners.entry(owner.email.clone()).or_insert(owner).add_hunk(commit);
+        self.owners
+            .entry(owner.email.clone())
+            .or_insert(owner)
+            .add_hunk(commit);
     }
 }
 
@@ -50,12 +50,11 @@ struct Owner {
     #[allow(dead_code)]
     name: String,
     email: String,
-    commits: HashMap<Oid,usize>,
+    commits: HashMap<Oid, usize>,
 }
 
 impl Owner {
-    fn new (sig: &Signature) -> Owner
-    {
+    fn new(sig: &Signature) -> Owner {
         let email = String::from_utf8_lossy(sig.email_bytes()).to_string();
         let name = String::from_utf8_lossy(sig.name_bytes()).to_string();
         Owner {
@@ -65,41 +64,42 @@ impl Owner {
         }
     }
 
-    fn add_hunk (
-        &mut self,
-        commit: &BlameHunk
-    )
-    {
+    fn add_hunk(&mut self, commit: &BlameHunk) {
         *self.commits.entry(commit.final_commit_id()).or_insert(0) += commit.lines_in_hunk();
     }
 
-    fn lines (&self) -> usize
-    {
-       self.commits.values().sum::<usize>()
+    fn lines(&self) -> usize {
+        self.commits.values().sum::<usize>()
     }
-
 }
 
 impl fmt::Display for Owner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} <{}>: Lines: {} Count: {}",
-               self.name,
-               self.email,
-               self.lines(),
-               self.commits.len())
+        write!(
+            f,
+            "{} <{}>: Lines: {} Count: {}",
+            self.name,
+            self.email,
+            self.lines(),
+            self.commits.len()
+        )
     }
-
 }
 
-fn run(args: &Args) -> Result<(), git2::Error> {
+fn main() -> Result<()> {
+    let args = Args::from_args();
+
     //let path = Path::new(&args.arg_path[..]);
     let repo = Repository::discover(&args.arg_path)?;
 
-    let path = args.arg_path.strip_prefix(
-        repo.path()
-            .parent()
-            .unwrap()
-        ).unwrap();
+    // Construct the path relative to the Git repository.
+    let repo_base_path = repo.path().parent().unwrap();
+    let arg_path = args.arg_path.canonicalize()?;
+    let path = if repo_base_path == arg_path {
+        repo_base_path
+    } else {
+        arg_path.strip_prefix(repo_base_path)?
+    };
 
     // Prepare our blame options
     let mut opts = BlameOptions::new();
@@ -111,8 +111,7 @@ fn run(args: &Args) -> Result<(), git2::Error> {
 
     let blame = repo.blame_file(path, Some(&mut opts))?;
 
-    for hunk in blame.iter()
-    {
+    for hunk in blame.iter() {
         tracker.add_hunk(&hunk);
     }
 
@@ -120,18 +119,9 @@ fn run(args: &Args) -> Result<(), git2::Error> {
     let mut owners: Vec<&Owner> = tracker.owners.values().collect();
     owners.sort_by(|a, b| b.lines().cmp(&a.lines()));
 
-    for owner in owners
-    {
+    for owner in owners {
         println!("  {}", owner);
     }
 
     Ok(())
-}
-
-fn main() {
-    let args = Args::from_args();
-    match run(&args) {
-        Ok(()) => {}
-        Err(e) => println!("error: {}", e)
-    }
 }
