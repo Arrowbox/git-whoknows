@@ -3,10 +3,12 @@ use git2::{BlameHunk, BlameOptions, Oid, Repository, Signature};
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
 #[allow(non_snake_case)]
+#[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
     #[structopt(name = "path", parse(from_os_str))]
     arg_path: PathBuf,
