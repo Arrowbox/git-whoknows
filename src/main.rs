@@ -92,10 +92,14 @@ fn main() -> Result<()> {
     //let path = Path::new(&args.arg_path[..]);
     let repo = Repository::discover(&args.arg_path)?;
 
-    let path = args
-        .arg_path
-        .strip_prefix(repo.path().parent().unwrap())
-        .unwrap();
+    // Construct the path relative to the Git repository.
+    let repo_base_path = repo.path().parent().unwrap();
+    let arg_path = args.arg_path.canonicalize()?;
+    let path = if repo_base_path == arg_path {
+        repo_base_path
+    } else {
+        arg_path.strip_prefix(repo_base_path)?
+    };
 
     // Prepare our blame options
     let mut opts = BlameOptions::new();
