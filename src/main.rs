@@ -26,9 +26,9 @@ struct TrackedFile {
 }
 
 impl TrackedFile {
-    fn new(path: &String) -> TrackedFile {
+    fn new(path: String) -> TrackedFile {
         TrackedFile {
-            path: path.clone(),
+            path,
             owners: HashMap::new(),
         }
     }
@@ -126,10 +126,7 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
 
     let output = Command::new("git")
         .arg("-C")
-        .arg(format!(
-            "{}",
-            path.parent().unwrap().display().to_string()
-        ))
+        .arg(format!("{}", path.parent().unwrap().display().to_string()))
         .arg("blame")
         .arg("--line-porcelain")
         .arg("--")
@@ -168,15 +165,15 @@ fn analyze_file(file: &PathBuf) -> Result<TrackedFile> {
     let repo = Repository::discover(file)?;
 
     // Construct the path relative to the Git repository.
-    let repo_base_path = repo.path().parent().unwrap();
+    let repo_base_path: PathBuf = repo.path().iter().take_while(|x| *x != ".git").collect();
     let arg_path = file.canonicalize()?;
-    let path = if repo_base_path == arg_path {
-        repo_base_path
+    let path = if arg_path.starts_with(&repo_base_path) {
+        arg_path.strip_prefix(&repo_base_path)?.to_path_buf()
     } else {
-        arg_path.strip_prefix(repo_base_path)?
+        arg_path
     };
 
-    let mut tracker = TrackedFile::new(&path.display().to_string());
+    let mut tracker = TrackedFile::new(path.display().to_string());
 
     let blame = run_external_blame(&repo, &file)?;
 
@@ -197,7 +194,7 @@ fn main() -> Result<()> {
             Ok(file) => file,
             Err(error) => {
                 println!("Problem with {:?}", error);
-                TrackedFile::new(&"Unknown".to_string())
+                TrackedFile::new("Unknown".to_string())
             }
         })
         .collect();
