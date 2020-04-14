@@ -9,14 +9,14 @@ Describes who is likely familiar with a file
 
 # Todo
 
-* [] Capture most recent hunk date
-* [] Capture oldest hunk date
-* [] Handle submodules and their git-dirs
-* [] Allow for tabular output
-* [] Add weighting how the list is sorted
-* [] Allow for specifying lines to increase weight for hunk
-* [] Allow for custom weighting scheme
-* [] Allow for more git-blame options
+* [ ] Capture most recent hunk date
+* [ ] Capture oldest hunk date
+* [ ] Handle submodules and their git-dirs
+* [ ] Allow for tabular output
+* [ ] Add weighting how the list is sorted
+* [ ] Allow for specifying lines to increase weight for hunk
+* [ ] Allow for custom weighting scheme
+* [ ] Allow for more git-blame options
 
 # Options
 

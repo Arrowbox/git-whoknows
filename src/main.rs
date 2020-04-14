@@ -128,7 +128,8 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
         .arg("-C")
         .arg(format!(
             "{}",
-            repo.path().parent().unwrap().display().to_string()
+            path.parent().unwrap().display().to_string()
+            //repo.path().parent().unwrap().display().to_string()
         ))
         .arg("blame")
         .arg("--line-porcelain")
@@ -148,8 +149,8 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
           ([0-9]+) # Line count",
     )?;
 
-    String::from_utf8(output.stdout)
-        .unwrap()
+    String::from_utf8_lossy(&output.stdout)
+        //.unwrap()
         .lines()
         .filter_map(|line| pattern.captures(line))
         .map(|cap| RawHunk {
