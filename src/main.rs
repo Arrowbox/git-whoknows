@@ -12,14 +12,6 @@ use std::process::Command;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-#[derive(StructOpt)]
-#[allow(non_snake_case)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
-struct Args {
-    #[structopt(name = "files", parse(from_os_str))]
-    file_list: Vec<PathBuf>,
-}
-
 struct TrackedFile {
     path: String,
     owners: HashMap<String, Owner>,
@@ -184,28 +176,60 @@ fn analyze_file(file: &PathBuf) -> Result<TrackedFile> {
     Ok(tracker)
 }
 
+trait OwnersFilter {
+    fn filter_email(&mut self, email: &Vec<String>);
+    fn filter_name(&mut self, name: &Vec<String>);
+}
+
+impl OwnersFilter for Vec<&Owner> {
+    fn filter_email(&mut self, email: &Vec<String>) {
+        self.retain(|s| email.iter().any(|e| s.email.contains(e)));
+    }
+
+    fn filter_name(&mut self, name: &Vec<String>) {
+        self.retain(|s| name.iter().any(|n| s.name.contains(n)));
+    }
+}
+
+#[derive(StructOpt)]
+#[allow(non_snake_case)]
+#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+struct Args {
+    #[structopt(name = "filter-email", long)]
+    email: Option<Vec<String>>,
+    #[structopt(name = "filter-name", long)]
+    name: Option<Vec<String>>,
+    #[structopt(name = "files", parse(from_os_str))]
+    file_list: Vec<PathBuf>,
+}
+
 fn main() -> Result<()> {
     let args = Args::from_args();
 
     let tracked_files: Vec<TrackedFile> = args
         .file_list
         .par_iter()
-        .map(|path| match analyze_file(path) {
-            Ok(file) => file,
-            Err(error) => {
-                println!("Problem with {:?}", error);
-                TrackedFile::new("Unknown".to_string())
-            }
-        })
+        .filter_map(|path| analyze_file(path).ok())
         .collect();
 
     for file in tracked_files {
-        println!("File: {}", file.path);
         let mut owners: Vec<&Owner> = file.owners.values().collect();
-        owners.sort_by(|a, b| b.lines().cmp(&a.lines()));
 
-        for owner in owners {
-            println!("  {}", owner);
+        match &args.email {
+            Some(email) => owners.filter_email(email),
+            None => {}
+        }
+
+        match &args.name {
+            Some(name) => owners.filter_name(name),
+            None => {}
+        }
+
+        if !owners.is_empty() {
+            println!("File: {}", file.path);
+            owners.sort_by_key(|a| a.lines());
+            owners.reverse();
+            owners.iter().for_each(|x| println!(" {}", x));
         }
     }
 
