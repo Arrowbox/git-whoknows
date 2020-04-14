@@ -129,12 +129,11 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
         .arg(format!(
             "{}",
             path.parent().unwrap().display().to_string()
-            //repo.path().parent().unwrap().display().to_string()
         ))
         .arg("blame")
         .arg("--line-porcelain")
         .arg("--")
-        .arg(format!("{}", path.display().to_string()))
+        .arg(format!("{}", path.file_name().unwrap().to_str().unwrap()))
         .output()?;
 
     if !output.status.success() {
@@ -150,7 +149,6 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
     )?;
 
     String::from_utf8_lossy(&output.stdout)
-        //.unwrap()
         .lines()
         .filter_map(|line| pattern.captures(line))
         .map(|cap| RawHunk {
