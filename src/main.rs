@@ -1,14 +1,14 @@
 extern crate regex;
 
 use anyhow::Result;
-use git2::{BlameHunk, BlameOptions, Repository, Oid, Commit};
+use git2::{BlameHunk, BlameOptions, Commit, Oid, Repository};
+use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 use std::process::Command;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-use regex::Regex;
 
 #[derive(StructOpt)]
 #[allow(non_snake_case)]
@@ -64,7 +64,7 @@ impl Owner {
         }
     }
 
-    fn add_hunk (&mut self, hunk: &impl Hunk) {
+    fn add_hunk(&mut self, hunk: &impl Hunk) {
         *self.commits.entry(hunk.sha1()).or_insert(0) += hunk.lines();
     }
 
@@ -133,11 +133,10 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
 
     let output = Command::new("git")
         .arg("-C")
-        .arg(format!("{}", repo.path()
-                                .parent()
-                                .unwrap()
-                                .display()
-                                .to_string()))
+        .arg(format!(
+            "{}",
+            repo.path().parent().unwrap().display().to_string()
+        ))
         .arg("blame")
         .arg("--line-porcelain")
         .arg("--")
@@ -148,26 +147,26 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
         println!("Error with command");
     }
 
-    let pattern = Regex::new(r"(?x)
+    let pattern = Regex::new(
+        r"(?x)
                                 ^([0-9a-zA-Z]{40})\s+ # 40 character SHA-1
                                 [0-9]+\s+ # Original line number
                                 [0-9]+\s+ # Final line number
-                                ([0-9]+) # Line count")?;
+                                ([0-9]+) # Line count",
+    )?;
 
     String::from_utf8(output.stdout)
         .unwrap()
         .lines()
         .filter_map(|line| pattern.captures(line))
-        .map(|cap| {
-                 RawHunk {
-                    commit: repo.find_object(
-                        Oid::from_str(&cap[1].to_string()).unwrap(), None)
-                        .unwrap()
-                        .into_commit()
-                        .unwrap(),
-                    _lines: cap[2].to_string().parse::<usize>().unwrap(),
-                 }
-             })
+        .map(|cap| RawHunk {
+            commit: repo
+                .find_object(Oid::from_str(&cap[1].to_string()).unwrap(), None)
+                .unwrap()
+                .into_commit()
+                .unwrap(),
+            _lines: cap[2].to_string().parse::<usize>().unwrap(),
+        })
         .for_each(|hunk| hunks.push(hunk));
 
     Ok(hunks)
