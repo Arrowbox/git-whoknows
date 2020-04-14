@@ -1,10 +1,14 @@
+extern crate regex;
+
 use anyhow::Result;
-use git2::{BlameHunk, BlameOptions, Repository};
+use git2::{BlameHunk, BlameOptions, Repository, Oid, Commit};
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
+use std::process::Command;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
+use regex::Regex;
 
 #[derive(StructOpt)]
 #[allow(non_snake_case)]
@@ -91,6 +95,26 @@ impl Hunk for BlameHunk<'_> {
     }
 }
 
+struct RawHunk<'rh> {
+    commit: Commit<'rh>,
+    _lines: usize,
+}
+
+impl Hunk for &RawHunk<'_> {
+    fn sha1(&self) -> String {
+        self.commit.id().to_string()
+    }
+    fn author(&self) -> String {
+        String::from_utf8_lossy(self.commit.author().name_bytes()).to_string()
+    }
+    fn email(&self) -> String {
+        String::from_utf8_lossy(self.commit.author().email_bytes()).to_string()
+    }
+    fn lines(&self) -> usize {
+        self._lines
+    }
+}
+
 impl fmt::Display for Owner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -102,6 +126,51 @@ impl fmt::Display for Owner {
             self.commits.len()
         )
     }
+}
+
+fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<RawHunk<'rh>>> {
+    let mut hunks: Vec<RawHunk> = Vec::new();
+
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(format!("{}", repo.path()
+                                .parent()
+                                .unwrap()
+                                .display()
+                                .to_string()))
+        .arg("blame")
+        .arg("--line-porcelain")
+        .arg("--")
+        .arg(format!("{}", path.display().to_string()))
+        .output()?;
+
+    if !output.status.success() {
+        println!("Error with command");
+    }
+
+    let pattern = Regex::new(r"(?x)
+                                ^([0-9a-zA-Z]{40})\s+ # 40 character SHA-1
+                                [0-9]+\s+ # Original line number
+                                [0-9]+\s+ # Final line number
+                                ([0-9]+) # Line count")?;
+
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .filter_map(|line| pattern.captures(line))
+        .map(|cap| {
+                 RawHunk {
+                    commit: repo.find_object(
+                        Oid::from_str(&cap[1].to_string()).unwrap(), None)
+                        .unwrap()
+                        .into_commit()
+                        .unwrap(),
+                    _lines: cap[2].to_string().parse::<usize>().unwrap(),
+                 }
+             })
+        .for_each(|hunk| hunks.push(hunk));
+
+    Ok(hunks)
 }
 
 fn main() -> Result<()> {
@@ -126,7 +195,8 @@ fn main() -> Result<()> {
 
     let mut tracker = TrackedFile::new(&path.display().to_string());
 
-    let blame = repo.blame_file(path, Some(&mut opts))?;
+    let blame = run_external_blame(&repo, &args.arg_path)?;
+    //let blame = repo.blame_file(path, Some(&mut opts))?;
 
     for hunk in blame.iter() {
         tracker.add_hunk(&hunk);
