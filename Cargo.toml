@@ -2,6 +2,9 @@
 name = "git-whoknows"
 version = "0.1.0"
 authors = ["Jayson Messenger <jayson.messenger@gmail.com>"]
+description = "Generate a listing of who is most likely to be familiar with a file"
+readme = "README.md"
+repository = "https://github.com/Arrowbox/git-whoknows"
 edition = "2018"
 license-file = "LICENSE"
 categories = ["command-line-utilities"]
