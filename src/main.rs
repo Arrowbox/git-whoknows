@@ -176,21 +176,6 @@ fn analyze_file(file: &PathBuf) -> Result<TrackedFile> {
     Ok(tracker)
 }
 
-trait OwnersFilter {
-    fn filter_email(&mut self, email: &Vec<String>);
-    fn filter_name(&mut self, name: &Vec<String>);
-}
-
-impl OwnersFilter for Vec<&Owner> {
-    fn filter_email(&mut self, email: &Vec<String>) {
-        self.retain(|s| email.iter().any(|e| s.email.contains(e)));
-    }
-
-    fn filter_name(&mut self, name: &Vec<String>) {
-        self.retain(|s| name.iter().any(|n| s.name.contains(n)));
-    }
-}
-
 #[derive(StructOpt)]
 #[allow(non_snake_case)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
@@ -199,6 +184,9 @@ struct Args {
     email: Option<Vec<String>>,
     #[structopt(name = "filter-name", long)]
     name: Option<Vec<String>>,
+    #[structopt(name = "summary", long)]
+    /// Print out summary of owners
+    summary: bool,
     #[structopt(name = "files", parse(from_os_str))]
     file_list: Vec<PathBuf>,
 }
@@ -213,17 +201,19 @@ fn main() -> Result<()> {
         .collect();
 
     for file in tracked_files {
-        let mut owners: Vec<&Owner> = file.owners.values().collect();
-
-        match &args.email {
-            Some(email) => owners.filter_email(email),
-            None => {}
-        }
-
-        match &args.name {
-            Some(name) => owners.filter_name(name),
-            None => {}
-        }
+        let mut owners: Vec<&Owner> = file.owners
+            .values()
+            .filter(|s|
+                match &args.email {
+                    Some(email) => email.iter().any(|e| s.email.contains(e)),
+                    None => true
+                })
+            .filter(|s|
+                match &args.name {
+                    Some(name) => name.iter().any(|n| s.email.contains(n)),
+                    None => true
+                })
+            .collect();
 
         if !owners.is_empty() {
             println!("File: {}", file.path);
