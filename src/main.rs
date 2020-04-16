@@ -125,6 +125,7 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
 
     if !output.status.success() {
         println!("Error with git-blame for {}", path.display());
+        return Err(anyhow::Error::msg("Error running git blame"));
     }
 
     let pattern = Regex::new(
