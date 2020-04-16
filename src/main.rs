@@ -1,5 +1,3 @@
-extern crate rayon;
-extern crate regex;
 
 use anyhow::Result;
 use git2::{BlameHunk, Commit, Oid, Repository};
