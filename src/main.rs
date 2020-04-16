@@ -1,5 +1,7 @@
-extern crate rayon;
-extern crate regex;
+#[macro_use]
+extern crate nom;
+
+mod blame;
 
 use anyhow::Result;
 use git2::{BlameHunk, Commit, Oid, Repository};
@@ -7,7 +9,7 @@ use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -71,6 +73,29 @@ impl fmt::Display for Owner {
     }
 }
 
+/// Definition of a hunk with no dependencies.
+struct BasicHunk {
+    hash: String,
+    author: String,
+    mail: String,
+    num_lines: usize,
+}
+
+impl Hunk for BasicHunk {
+    fn sha1(&self) -> String {
+        self.hash.clone()
+    }
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+    fn email(&self) -> String {
+        self.mail.clone()
+    }
+    fn lines(&self) -> usize {
+        self.num_lines
+    }
+}
+
 struct RawHunk<'rh> {
     commit: Commit<'rh>,
     _lines: usize,
@@ -127,6 +152,7 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
 
     if !output.status.success() {
         println!("Error with git-blame for {}", path.display());
+        return Err(anyhow::Error::msg("Error running git blame"));
     }
 
     let pattern = Regex::new(
@@ -151,6 +177,47 @@ fn run_external_blame<'rh>(repo: &'rh Repository, path: &PathBuf) -> Result<Vec<
         .for_each(|hunk| hunks.push(hunk));
 
     Ok(hunks)
+}
+
+fn analyze_file_nom(path: &Path) -> Result<TrackedFile> {
+    let txt = blame::generate_blame(&path.canonicalize().unwrap())?;
+    let lines = blame::parse_blame(&txt);
+
+    let commits: HashMap<&str, (&str, &str)> = lines
+        .iter()
+        .filter_map(|line| {
+            if let Some(extra) = &line.header.extra {
+                Some((line.header.hash, (extra.author, extra.author_mail)))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut tracked_file = TrackedFile::new(path.display().to_string());
+
+    lines
+        .iter()
+        .filter_map(|line| {
+            if let Some(num_lines_in_group) = line.header.num_lines_in_group {
+                let commit = commits
+                    .get(line.header.hash)
+                    .expect("Commit information must be known for hunk.");
+                Some(BasicHunk {
+                    hash: line.header.hash.to_string(),
+                    author: commit.0.to_string(),
+                    mail: commit.1.trim_start_matches("<").trim_end_matches(">").to_string(),
+                    num_lines: num_lines_in_group,
+                })
+            } else {
+                None
+            }
+        })
+        .for_each(|hunk| {
+            tracked_file.add_hunk(&hunk);
+        });
+
+    Ok(tracked_file)
 }
 
 fn analyze_file(file: &PathBuf) -> Result<TrackedFile> {
@@ -182,11 +249,18 @@ fn analyze_file(file: &PathBuf) -> Result<TrackedFile> {
 struct Args {
     #[structopt(name = "filter-email", long)]
     email: Option<Vec<String>>,
+
     #[structopt(name = "filter-name", long)]
     name: Option<Vec<String>>,
+
     #[structopt(name = "summary", long)]
     /// Print out summary of owners
     summary: bool,
+
+    /// Use the nom parser
+    #[structopt(long)]
+    nom: bool,
+
     #[structopt(name = "files", parse(from_os_str))]
     file_list: Vec<PathBuf>,
 }
@@ -197,22 +271,27 @@ fn main() -> Result<()> {
     let tracked_files: Vec<TrackedFile> = args
         .file_list
         .par_iter()
-        .filter_map(|path| analyze_file(path).ok())
+        .filter_map(|path| {
+            if args.nom {
+                analyze_file_nom(path).ok()
+            } else {
+                analyze_file(path).ok()
+            }
+        })
         .collect();
 
     for file in tracked_files {
-        let mut owners: Vec<&Owner> = file.owners
+        let mut owners: Vec<&Owner> = file
+            .owners
             .values()
-            .filter(|s|
-                match &args.email {
-                    Some(email) => email.iter().any(|e| s.email.contains(e)),
-                    None => true
-                })
-            .filter(|s|
-                match &args.name {
-                    Some(name) => name.iter().any(|n| s.email.contains(n)),
-                    None => true
-                })
+            .filter(|s| match &args.email {
+                Some(email) => email.iter().any(|e| s.email.contains(e)),
+                None => true,
+            })
+            .filter(|s| match &args.name {
+                Some(name) => name.iter().any(|n| s.email.contains(n)),
+                None => true,
+            })
             .collect();
 
         if !owners.is_empty() {
