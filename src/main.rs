@@ -201,18 +201,17 @@ fn main() -> Result<()> {
         .collect();
 
     for file in tracked_files {
-        let mut owners: Vec<&Owner> = file.owners
+        let mut owners: Vec<&Owner> = file
+            .owners
             .values()
-            .filter(|s|
-                match &args.email {
-                    Some(email) => email.iter().any(|e| s.email.contains(e)),
-                    None => true
-                })
-            .filter(|s|
-                match &args.name {
-                    Some(name) => name.iter().any(|n| s.email.contains(n)),
-                    None => true
-                })
+            .filter(|s| match &args.email {
+                Some(email) => email.iter().any(|e| s.email.contains(e)),
+                None => true,
+            })
+            .filter(|s| match &args.name {
+                Some(name) => name.iter().any(|n| s.email.contains(n)),
+                None => true,
+            })
             .collect();
 
         if !owners.is_empty() {
