@@ -257,9 +257,9 @@ struct Args {
     /// Print out summary of owners
     summary: bool,
 
-    /// Use the nom parser
+    /// Use the regex parser
     #[structopt(long)]
-    nom: bool,
+    regex: bool,
 
     #[structopt(name = "files", parse(from_os_str))]
     file_list: Vec<PathBuf>,
@@ -272,10 +272,10 @@ fn main() -> Result<()> {
         .file_list
         .par_iter()
         .filter_map(|path| {
-            if args.nom {
-                analyze_file_nom(path).ok()
-            } else {
+            if args.regex {
                 analyze_file(path).ok()
+            } else {
+                analyze_file_nom(path).ok()
             }
         })
         .collect();
