@@ -169,6 +169,7 @@ filename src/main.rs
                         TimeZone::from_offset(&FixedOffset::east(-0700))
                     ),
                     summary: "Switch to anyhow and modify main to return Result.",
+                    boundary: None,
                     filename: "src/main.rs",
                     previous: Some("dbdf0caee4e14c03e5c3b8c7575219b3affe5657 src/main.rs"),
                 }
