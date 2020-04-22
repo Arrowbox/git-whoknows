@@ -4,6 +4,7 @@ extern crate nom;
 mod blame;
 
 use anyhow::Result;
+use dashmap::DashMap;
 use git2::{BlameHunk, Commit, Oid, Repository};
 use rayon::prelude::*;
 use regex::Regex;
@@ -57,6 +58,13 @@ impl Owner {
 
     fn lines(&self) -> usize {
         self.commits.values().sum::<usize>()
+    }
+
+    fn merge(&mut self, other: &Owner) {
+        other
+            .commits
+            .iter()
+            .for_each(|(hash, lines)| *self.commits.entry(hash.to_string()).or_insert(0) += lines);
     }
 }
 
@@ -206,7 +214,11 @@ fn analyze_file_nom(path: &Path) -> Result<TrackedFile> {
                 Some(BasicHunk {
                     hash: line.header.hash.to_string(),
                     author: commit.0.to_string(),
-                    mail: commit.1.trim_start_matches("<").trim_end_matches(">").to_string(),
+                    mail: commit
+                        .1
+                        .trim_start_matches("<")
+                        .trim_end_matches(">")
+                        .to_string(),
                     num_lines: num_lines_in_group,
                 })
             } else {
@@ -280,7 +292,7 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    for file in tracked_files {
+    for file in &tracked_files {
         let mut owners: Vec<&Owner> = file
             .owners
             .values()
@@ -296,6 +308,42 @@ fn main() -> Result<()> {
 
         if !owners.is_empty() {
             println!("File: {}", file.path);
+            owners.sort_by_key(|a| a.lines());
+            owners.reverse();
+            owners.iter().for_each(|x| println!(" {}", x));
+        }
+    }
+
+    if args.summary {
+        let summary: DashMap<String, Owner> = DashMap::new();
+        &tracked_files.par_iter().for_each(|t| {
+            t.owners.par_iter().for_each(|(e, o)| {
+                summary
+                    .entry(e.to_string())
+                    .or_insert(Owner {
+                        name: o.name.to_string(),
+                        email: o.email.to_string(),
+                        commits: HashMap::new(),
+                    })
+                    .merge(o)
+            })
+        });
+
+        let mut owners: Vec<Owner> = summary
+            .into_iter()
+            .map(|(_, value)| value)
+            .filter(|s| match &args.email {
+                Some(email) => email.iter().any(|e| s.email.contains(e)),
+                None => true,
+            })
+            .filter(|s| match &args.name {
+                Some(name) => name.iter().any(|n| s.email.contains(n)),
+                None => true,
+            })
+            .collect();
+
+        println!("Summary");
+        if !owners.is_empty() {
             owners.sort_by_key(|a| a.lines());
             owners.reverse();
             owners.iter().for_each(|x| println!(" {}", x));
