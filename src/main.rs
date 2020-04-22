@@ -4,6 +4,7 @@ extern crate nom;
 mod blame;
 
 use anyhow::Result;
+use dashmap::DashMap;
 use git2::{BlameHunk, Commit, Oid, Repository};
 use rayon::prelude::*;
 use regex::Regex;
@@ -314,9 +315,9 @@ fn main() -> Result<()> {
     }
 
     if args.summary {
-        let mut summary: HashMap<String, Owner> = HashMap::new();
-        &tracked_files.iter().for_each(|t| {
-            t.owners.iter().for_each(|(e, o)| {
+        let summary: DashMap<String, Owner> = DashMap::new();
+        &tracked_files.par_iter().for_each(|t| {
+            t.owners.par_iter().for_each(|(e, o)| {
                 summary
                     .entry(e.to_string())
                     .or_insert(Owner {
@@ -328,8 +329,9 @@ fn main() -> Result<()> {
             })
         });
 
-        let mut owners: Vec<&Owner> = summary
-            .values()
+        let mut owners: Vec<Owner> = summary
+            .into_iter()
+            .map(|(_, value)| value)
             .filter(|s| match &args.email {
                 Some(email) => email.iter().any(|e| s.email.contains(e)),
                 None => true,
