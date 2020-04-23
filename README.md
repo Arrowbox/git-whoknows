@@ -20,6 +20,10 @@ Describes who is likely familiar with a file
 
 # Options
 
+## Implemented
+* `--summary` - Display summary at end of output
+
+## Not implemented
 * `-L <lines>` - Specifically for a set of lines, can be specified multiple times
 * `--no-table/table` - Format output as an ascii table or comma-delimited
 * `--weight=<commits>,<lines>,<latest>,<earliest>` - Custom weightings for different metrics
