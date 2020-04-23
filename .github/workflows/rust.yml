@@ -1,11 +1,11 @@
 name: Rust
 
 on:
-  push
+  push:
+    branches: [ staging, trying ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
